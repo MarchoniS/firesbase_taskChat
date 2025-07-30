@@ -94,6 +94,11 @@ class AuthController {
     await _auth.signOut();
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+  }
+
+
   // Get currently signed-in user
   User? get currentUser => _auth.currentUser;
 }
