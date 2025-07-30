@@ -1,0 +1,5 @@
+echo '{
+"version": "1.0.1",
+"apkUrl": "https://task-management-1455a.web.app/task-latest.apk",
+"forceUpdate": true
+}' > public/version.json
