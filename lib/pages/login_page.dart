@@ -9,6 +9,7 @@ import 'home_page.dart';
 class LoginPage extends StatefulWidget {
   final AuthController authController;
 
+
   const LoginPage({Key? key, required this.authController}) : super(key: key);
 
   @override
@@ -19,8 +20,99 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifierCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+
 
   bool _loading = false;
+
+
+
+  void _showResetPasswordDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Reset Password',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+          ),
+          content: SizedBox(
+            width: 300,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Enter your email address to receive a password reset link.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address',
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6A11CB),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.send, size: 18,color: Colors.white),
+              label: const Text(
+                'Send Reset Link',
+                style: TextStyle(color: Colors.white),
+              ),
+              onPressed: () async {
+                final email = emailController.text.trim();
+                if (email.isNotEmpty) {
+                  Navigator.pop(context);
+                  await _resetPassword(email);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter your email')),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
+  Future<void> _resetPassword(String email) async {
+    try {
+      await widget.authController.sendPasswordResetEmail(email); // Add this method to your controller
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset link sent!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -74,6 +166,7 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _identifierCtrl.dispose();
     _passwordCtrl.dispose();
+    emailController.dispose();
     super.dispose();
   }
 
@@ -151,10 +244,19 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               prefixIcon: const Icon(Icons.lock),
                             ),
+
                             obscureText: true,
                             validator: (val) =>
                             val != null && val.length >= 6 ? null : '6+ characters required',
                           ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _showResetPasswordDialog,
+                              child: const Text('Forgot Password?'),
+                            ),
+                          ),
+
                           const SizedBox(height: 24),
                           _loading
                               ? const Center(child: CircularProgressIndicator())
