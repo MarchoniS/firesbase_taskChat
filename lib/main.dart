@@ -1,15 +1,20 @@
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
 import 'firebase_options.dart';
 import 'controllers/auth_controller.dart';
 import 'repositories/user_repository.dart';
 import 'repositories/task_repository.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
+import 'pages/draggable_task_fab.dart';
+import 'models/task_model.dart';
+
+
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
@@ -22,11 +27,14 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await FlutterDownloader.initialize(
+    debug: true, // set to false for production
+    ignoreSsl: true, // only if your URL uses self-signed HTTPS
+  );
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  FirebasePerformance.instance.setPerformanceCollectionEnabled(true);
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // Setup flutter local notifications
@@ -51,15 +59,24 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final AuthController _authController = AuthController();
+  final taskRepository = TaskRepository();
+  final userRepository = UserRepository();
   late final Stream<User?> _authStateChanges;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
+  int newTaskCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _authStateChanges = FirebaseAuth.instance.authStateChanges();
 
+    // Set up Firebase Auth state
+    _authStateChanges = FirebaseAuth.instance.authStateChanges();
+    // Set up Firebase Cloud Messaging
     _setupFirebaseMessaging();
+
+    // Listen for new task count changes - live update
+    _listenNewTaskCount();
   }
 
   /// Setup FCM
@@ -100,6 +117,35 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  List<AssignedTask> newTasksList = [];
+
+  void _listenNewTaskCount() {
+    _authStateChanges.listen((user) {
+      if (user != null) {
+        taskRepository.streamTasksForUser(user.uid).listen((tasks) {
+          final filtered = tasks.where((t) => t.status == 'new').toList();
+          setState(() {
+            newTasksList = filtered;
+            newTaskCount = filtered.length;
+          });
+        });
+      } else {
+        setState(() {
+          newTaskCount = 0;
+          newTasksList = [];
+        });
+      }
+    });
+  }
+
+
+
+
+  void _showNewTasksDialog() {
+    // Implement your new tasks dialog or navigation here
+    print('Floating Task Bubble pressed: Show new tasks dialog or navigate.');
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -118,10 +164,24 @@ class _MyAppState extends State<MyApp> {
             if (user == null) {
               return LoginPage(authController: _authController);
             } else {
-              return HomePage(
-                authController: _authController,
-                userRepository: UserRepository(),
-                taskRepository: TaskRepository(),
+              return Stack(
+                children: [
+                  HomePage(
+                    authController: _authController,
+                    userRepository: UserRepository(),
+                    taskRepository: TaskRepository(),
+                  ),
+
+                  DraggableTaskBubble(
+                    newTaskCount: newTaskCount,
+                    newTasks: newTasksList,
+                    taskRepository: taskRepository,
+                    userRepository: userRepository,
+                  )
+
+
+
+                ],
               );
             }
           } else {

@@ -1,5 +1,6 @@
-echo '{
-"version": "1.0.1",
-"apkUrl": "https://task-management-1455a.web.app/task-latest.apk",
-"forceUpdate": true
-}' > public/version.json
+{
+  "version": "1.0.5",
+  "apkUrl": "https://github.com/MarchoniS/firesbase_taskChat/releases/download/v1.0.1/app-release.apk",
+  "forceUpdate": false,
+  "changelog": "• Move All button from Home to Sidebar Drawer\n• Add reset password button\n•"
+}

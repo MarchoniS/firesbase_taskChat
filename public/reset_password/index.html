@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Reset Your Password - TaskChat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyAq7J4JUxt0nsboVHRT9_O6ci2OUfuvg5c",
+          authDomain: "task-management-1455a.firebaseapp.com",
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
+
+    <style>
+        body {
+          font-family: 'Segoe UI', sans-serif;
+          background: #f4f6f8;
+          padding: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+        }
+
+        .box {
+          background: white;
+          padding: 30px;
+          border-radius: 10px;
+          box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+          max-width: 400px;
+          width: 100%;
+        }
+
+        h2 {
+          margin: 0 0 10px;
+          font-weight: 600;
+          font-size: 22px;
+          color: #333;
+        }
+
+        .email-display {
+          font-size: 14px;
+          margin-bottom: 20px;
+          color: #666;
+        }
+
+        input[type="password"] {
+          width: 100%;
+          padding: 12px;
+          margin-bottom: 15px;
+          font-size: 15px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+        }
+
+        button {
+          width: 100%;
+          padding: 12px;
+          background-color: #1976d2;
+          color: white;
+          font-size: 16px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 0.3s;
+        }
+
+        button:hover {
+          background-color: #1565c0;
+        }
+
+        .message {
+          margin-top: 15px;
+          font-size: 14px;
+        }
+
+        .success {
+          color: green;
+        }
+
+        .error {
+          color: red;
+        }
+    </style>
+</head>
+<body>
+<div class="box">
+    <h2>Reset Your Password</h2>
+    <div class="email-display" id="emailDisplay">Checking email...</div>
+    <input type="password" id="newPassword" placeholder="New password" />
+    <input type="password" id="confirmPassword" placeholder="Confirm password" />
+    <button id="resetBtn">Reset Password</button>
+    <div class="message" id="message"></div>
+</div>
+
+<script>
+    window.onload = async function () {
+      const params = new URLSearchParams(window.location.search);
+      const oobCode = params.get('oobCode');
+      const mode = params.get('mode');
+
+      const passwordInput = document.getElementById('newPassword');
+      const confirmInput = document.getElementById('confirmPassword');
+      const resetBtn = document.getElementById('resetBtn');
+      const messageDiv = document.getElementById('message');
+      const emailDisplay = document.getElementById('emailDisplay');
+
+      if (mode === 'resetPassword' && oobCode) {
+        try {
+          const info = await firebase.auth().verifyPasswordResetCode(oobCode);
+          emailDisplay.textContent = `Resetting password for: ${info}`;
+        } catch (error) {
+          emailDisplay.textContent = 'Invalid or expired reset link.';
+          emailDisplay.className = 'error';
+          resetBtn.disabled = true;
+          return;
+        }
+
+        resetBtn.addEventListener('click', async () => {
+          const newPassword = passwordInput.value.trim();
+          const confirmPassword = confirmInput.value.trim();
+
+          if (newPassword.length < 6) {
+            messageDiv.textContent = 'Password must be at least 6 characters.';
+            messageDiv.className = 'message error';
+            return;
+          }
+
+          if (newPassword !== confirmPassword) {
+            messageDiv.textContent = 'Passwords do not match.';
+            messageDiv.className = 'message error';
+            return;
+          }
+
+          try {
+            await firebase.auth().confirmPasswordReset(oobCode, newPassword);
+            messageDiv.textContent = '✅ Password has been reset successfully!';
+            messageDiv.className = 'message success';
+            passwordInput.value = '';
+            confirmInput.value = '';
+            resetBtn.disabled = true;
+          } catch (error) {
+            console.error(error);
+            messageDiv.textContent = `❌ Error: ${error.message}`;
+            messageDiv.className = 'message error';
+          }
+        });
+      } else {
+        emailDisplay.textContent = 'Invalid or expired reset link.';
+        emailDisplay.className = 'error';
+        resetBtn.disabled = true;
+      }
+    };
+</script>
+</body>
+</html>

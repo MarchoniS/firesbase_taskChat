@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/lib/secrets/firebase_keys.dart
+
 
 # Symbolication related
 app.*.symbols

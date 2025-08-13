@@ -20,7 +20,7 @@ class TaskRepository {
       'assignedByUserId': currentUser.uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'status': 'pending',
+      'status': 'new',
     };
 
     await _firestore.collection('assigned_tasks').add(taskData);
@@ -45,7 +45,7 @@ class TaskRepository {
         'assignedByUserId': currentUser.uid,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'status': 'pending',
+        'status': 'new',
       };
       batch.set(docRef, taskData);
     }

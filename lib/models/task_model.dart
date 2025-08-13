@@ -18,7 +18,7 @@ class AssignedTask {
     this.assignedByUsername,
     required this.createdAt,
     required this.updatedAt,
-    this.status = 'pending',
+    this.status = 'new',
   });
 
   // factory AssignedTask.fromFirestore(String id, Map<String, dynamic> data) {
