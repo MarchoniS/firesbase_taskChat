@@ -3,6 +3,8 @@ import '../models/task_model.dart';
 import '../pages/assign_task_page.dart';
 import '../repositories/task_repository.dart';
 import '../repositories/user_repository.dart';
+import 'task_page.dart';
+
 
 class DraggableTaskBubble extends StatefulWidget {
   final int newTaskCount;
@@ -36,9 +38,17 @@ class _DraggableTaskBubbleState extends State<DraggableTaskBubble>
   bool isVisible = true;
   bool isDragging = false;
 
+  // Local state variables to sync counts
+  late int _newTaskCount;
+  late List<AssignedTask> _newTasks;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize local state
+    _newTaskCount = widget.newTaskCount;
+    _newTasks = List.from(widget.newTasks);
 
     _pulseController = AnimationController(
       vsync: this,
@@ -82,41 +92,99 @@ class _DraggableTaskBubbleState extends State<DraggableTaskBubble>
   void _showDialog() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("New Tasks"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: widget.newTasks.length,
-            separatorBuilder: (context, index) => const Divider(),
-            itemBuilder: (context, index) {
-              final task = widget.newTasks[index];
-              return ListTile(
-                title: Text(task.task ?? 'No description'),
-                onTap: () {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AssignTaskPage(
-                        taskRepository: widget.taskRepository,
-                        userRepository: widget.userRepository,
-                        // Optionally pass selected task if needed
+      builder: (_) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 400),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade600,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
                     ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
+                    child: const Text(
+                      "New Tasks",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  // Task List
+                  Expanded(
+                    child: widget.newTasks.isEmpty
+                        ? const Center(child: Text("No new tasks"))
+                        : ListView.separated(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: widget.newTasks.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final task = widget.newTasks[index];
+                        return ListTile(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          tileColor: Colors.indigo.shade50,
+                          title: Text(task.task ?? 'No description'),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                          onTap: () {
+                            setState(() {
+                              widget.newTasks.removeAt(index); // modify widget list directly
+                            });
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AssignedTasksPage(
+                                  taskRepository: widget.taskRepository,
+                                  initialTaskId: task.id,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+
+                  // Close Button
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.indigo.shade100,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        "Close",
+                        style: TextStyle(
+                            color: Colors.indigo, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -207,7 +275,8 @@ class _DraggableTaskBubbleState extends State<DraggableTaskBubble>
                         ],
                       ),
 
-                      if (widget.newTaskCount > 0)
+                      // Bubble count indicator
+                      if (widget.newTasks.isNotEmpty)
                         Positioned(
                           right: 0,
                           top: 0,
@@ -226,17 +295,14 @@ class _DraggableTaskBubbleState extends State<DraggableTaskBubble>
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: Colors.redAccent,
                                   shape: BoxShape.circle,
                                   border: Border.all(color: Colors.white, width: 1.5),
                                 ),
                                 child: Text(
-                                  "+${widget.newTaskCount}",
+                                  "+${widget.newTasks.length}", // dynamically using widget.newTasks
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 11,

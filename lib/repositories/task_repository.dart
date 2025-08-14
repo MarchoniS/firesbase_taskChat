@@ -115,6 +115,21 @@ class TaskRepository {
     }
   }
 
+  /// Fetch a single task by ID
+  Future<AssignedTask?> getAssignedTaskById(String taskId) async {
+    try {
+      final doc = await _firestore.collection('assigned_tasks').doc(taskId).get();
+      if (doc.exists) {
+        return AssignedTask.fromFirestore(doc.id, doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Failed to fetch task by ID: $e');
+      rethrow;
+    }
+  }
+
+
   /// Delete a task, safely handling errors
   Future<void> deleteTask(String taskId) async {
     try {

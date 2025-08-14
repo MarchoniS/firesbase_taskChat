@@ -46,8 +46,6 @@ class _HomePageState extends State<HomePage> {
       final tasks = await widget.taskRepository.getTasksAssignedToMe(uid);
       setState(() {
         username = user.username;
-        // pendingTasks = tasks.where((t) => t.status == 'pending').toList();
-        // newTasks = tasks.where((t) => t.status == 'new').toList();
         loading = false;
       });
     } else {
@@ -57,53 +55,6 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-
-  // void _showNewTasksDialog() {
-  //   if (newTasks.isEmpty) {
-  //     // No action if no new tasks
-  //     return;
-  //   }
-
-  //   showDialog(
-  //     context: context,
-  //     builder: (ctx) => AlertDialog(
-  //       title: Text("New Assigned Tasks (${newTasks.length})"),
-  //       content: SizedBox(
-  //         width: double.maxFinite,
-  //         child: ListView.separated(
-  //           shrinkWrap: true,
-  //           itemCount: newTasks.length,
-  //           separatorBuilder: (context, index) => const Divider(),
-  //           itemBuilder: (context, index) {
-  //             final task = newTasks[index];
-  //             return ListTile(
-  //               title: Text(task.task ?? 'No description'),
-  //               subtitle: Text('Assigned by: ${task.assignedByUsername ?? 'Unknown'}'),
-  //               trailing: Text(task.status ?? ''),
-  //             );
-  //           },
-  //         ),
-  //       ),
-  //       actions: [
-  //         TextButton(
-  //           child: const Text("Close"),
-  //           onPressed: () => Navigator.of(ctx).pop(),
-  //         ),
-  //         ElevatedButton(
-  //           child: const Text("Mark All as Read"),
-  //           onPressed: () {
-  //             // Example logic: mark all new tasks as pending locally
-  //             setState(() {
-  //               pendingTasks = [...pendingTasks, ...newTasks];
-  //               newTasks.clear();
-  //             });
-  //             Navigator.of(ctx).pop();
-  //           },
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -131,52 +82,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.system_update),
-            tooltip: 'Check for Update',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text("Download Update?"),
-                  content: const Text("Would you like to download the latest version?"),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text("Cancel")),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text("Download"),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirm == true) {
-                try {
-                  final response = await http.get(
-                      Uri.parse("https://task-management-1455a.web.app/version.json"));
-                  if (response.statusCode == 200) {
-                    final jsonData = json.decode(response.body);
-                    final apkUrl = jsonData['apkUrl'];
-
-                    if (apkUrl != null) {
-                      UpdateDownloader.registerPort();
-                      await UpdateDownloader.downloadApk(context, apkUrl);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Invalid update URL")),
-                      );
-                    }
-                  }
-                } catch (_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Failed to fetch update URL")),
-                  );
-                }
-              }
-            },
-          ),
+          // Removed system_update button
         ],
       ),
       drawer: AppDrawer(
@@ -184,50 +90,6 @@ class _HomePageState extends State<HomePage> {
         userRepository: widget.userRepository,
         taskRepository: widget.taskRepository,
       ),
-
-      // floatingActionButton: FloatingActionButton(
-      //   onPressed: () {
-      //     if (newTasks.isNotEmpty) {
-      //       _showNewTasksDialog();
-      //     }
-      //     // else do nothing
-      //   },
-      //   backgroundColor: Colors.indigo,
-      //   tooltip: 'Show New Assigned Tasks',
-      //   child: Stack(
-      //     alignment: Alignment.center,
-      //     children: [
-      //       const Icon(Icons.task),
-      //       if (newTasks.isNotEmpty)
-      //         Positioned(
-      //           right: 0,
-      //           top: 0,
-      //           child: Container(
-      //             padding: const EdgeInsets.all(6),
-      //             decoration: BoxDecoration(
-      //               color: Colors.redAccent,
-      //               shape: BoxShape.circle,
-      //               border: Border.all(color: Colors.white, width: 1.5),
-      //             ),
-      //             constraints: const BoxConstraints(
-      //               minWidth: 20,
-      //               minHeight: 20,
-      //             ),
-      //             child: Text(
-      //               newTasks.length.toString(),
-      //               style: const TextStyle(
-      //                 color: Colors.white,
-      //                 fontSize: 12,
-      //                 fontWeight: FontWeight.bold,
-      //               ),
-      //               textAlign: TextAlign.center,
-      //             ),
-      //           ),
-      //         ),
-      //     ],
-      //   ),
-      // ),
-
       body: RefreshIndicator(
         onRefresh: _loadUserData,
         child: Padding(
@@ -237,7 +99,8 @@ class _HomePageState extends State<HomePage> {
             children: [
               Text(
                 "Team Chat",
-                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               Expanded(

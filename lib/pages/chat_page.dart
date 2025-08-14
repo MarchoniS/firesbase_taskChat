@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/gestures.dart';
 
 import '../repositories/user_repository.dart';
 import '../repositories/task_repository.dart';
 import '../models/user_model.dart';
-
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 
 class HighlightedMessage extends StatelessWidget {
   final String text;
@@ -18,7 +16,6 @@ class HighlightedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Regex matches "task" (case insensitive) or any @mention
     final pattern = RegExp(r'(\btask\b:?)|(@\w+)', caseSensitive: false);
 
     final spans = <TextSpan>[];
@@ -31,7 +28,6 @@ class HighlightedMessage extends StatelessWidget {
 
       final matchText = match.group(0)!;
       if (matchText.toLowerCase().startsWith('task')) {
-        // Replace any variant of "task" with uppercase "TASK"
         final displayed = matchText.toUpperCase();
         spans.add(TextSpan(
           text: displayed,
@@ -70,8 +66,6 @@ class HighlightedMessage extends StatelessWidget {
   }
 }
 
-
-
 class GlobalChatPage extends StatefulWidget {
   final UserRepository userRepository;
   final TaskRepository taskRepository;
@@ -89,6 +83,8 @@ class GlobalChatPage extends StatefulWidget {
 class _GlobalChatPageState extends State<GlobalChatPage> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+
   final User? user = FirebaseAuth.instance.currentUser;
   final CollectionReference messagesRef = FirebaseFirestore.instance
       .collection('groups')
@@ -137,9 +133,7 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
   Color _generateColorFromUsername(String username) {
     final hash = username.hashCode;
     final hue = (hash % 360).toDouble();
-    const saturation = 0.6;
-    const lightness = 0.5;
-    return HSLColor.fromAHSL(1.0, hue, saturation, lightness).toColor();
+    return HSLColor.fromAHSL(1.0, hue, 0.6, 0.5).toColor();
   }
 
   void _handleInputChanged(String text) {
@@ -154,7 +148,8 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
       filteredUsers = partial.isEmpty
           ? allUsers
           : allUsers
-          .where((u) => u.username.toLowerCase().startsWith(partial.toLowerCase()))
+          .where((u) =>
+          u.username.toLowerCase().startsWith(partial.toLowerCase()))
           .toList();
       setState(() {
         showUserSuggestions = filteredUsers.isNotEmpty;
@@ -198,7 +193,6 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
 
     if (text.isEmpty || currentUser == null || senderName == null) return;
 
-    // Task assign feature (case-insensitive, batch for multiple)
     if (text.toLowerCase().startsWith('task:')) {
       final regex = RegExp(r'@(\w+)', caseSensitive: false);
       final mentions = regex
@@ -207,21 +201,23 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
           .whereType<String>()
           .toList();
 
-      final taskText = text.replaceFirst(RegExp(r'^task:\s*', caseSensitive: false), '')
+      final taskText = text
+          .replaceFirst(RegExp(r'^task:\s*', caseSensitive: false), '')
           .replaceAll(RegExp(r'@\w+', caseSensitive: false), '')
           .trim();
 
       if (taskText.isEmpty || mentions.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Please enter a task and mention at least one user')),
+              content:
+              Text('Please enter a task and mention at least one user')),
         );
         return;
       }
 
-      final mentionedUsers = allUsers.where(
-            (u) => mentions.contains(u.username.toLowerCase()),
-      ).toList();
+      final mentionedUsers = allUsers
+          .where((u) => mentions.contains(u.username.toLowerCase()))
+          .toList();
 
       if (mentionedUsers.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -248,7 +244,6 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
       }
     }
 
-    // Send chat message anyway
     await messagesRef.add({
       'senderId': currentUser.uid,
       'senderName': senderName!,
@@ -260,6 +255,23 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
     setState(() {
       showUserSuggestions = false;
     });
+
+    _scrollToBottom(animated: true);
+  }
+
+  void _scrollToBottom({bool animated = false}) {
+    if (_scrollController.hasClients) {
+      final position = _scrollController.position.maxScrollExtent;
+      if (animated) {
+        _scrollController.animateTo(
+          position,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(position);
+      }
+    }
   }
 
   bool _isSameDate(Timestamp? t1, Timestamp? t2) {
@@ -297,7 +309,9 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
             children: [
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: messagesRef.orderBy('timestamp', descending: false).snapshots(),
+                  stream: messagesRef
+                      .orderBy('timestamp', descending: false)
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
@@ -308,11 +322,16 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                       return const Center(child: Text('No messages yet'));
                     }
 
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom();
+                    });
+
                     final currentUserId = user?.uid;
 
                     return ListView.builder(
+                      controller: _scrollController,
                       itemCount: docs.length,
-                      reverse: false,
+                      reverse: false, // latest at bottom
                       itemBuilder: (context, index) {
                         final data =
                         docs[index].data()! as Map<String, dynamic>;
@@ -367,13 +386,12 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                                   MediaQuery.of(context).size.width * 0.75,
                                 ),
                                 child: Container(
-                                  padding: const EdgeInsets.fromLTRB(
-                                      12, 8, 12, 18),
+                                  padding:
+                                  const EdgeInsets.fromLTRB(12, 8, 12, 18),
                                   decoration: BoxDecoration(
-                                    color: isMe ? const Color(0xffDCF8C6) : Colors.grey.shade200,
-                                    // color: isMe
-                                    //     ? const Color(0xffDCF8C6)
-                                    //     : Colors.white,
+                                    color: isMe
+                                        ? const Color(0xffDCF8C6)
+                                        : Colors.grey.shade200,
                                     borderRadius: BorderRadius.only(
                                       topLeft: const Radius.circular(12),
                                       topRight: const Radius.circular(12),
@@ -401,17 +419,14 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                                               left: 4, bottom: 2),
                                           child: Container(
                                             decoration: BoxDecoration(
-                                              color: isMe ? const Color(0xffDCF8C6) : Colors.grey[200],
-
-                                              borderRadius: BorderRadius.only(
-                                                topLeft: const Radius.circular(12),
-                                                topRight: const Radius.circular(12),
-                                                bottomLeft: Radius.circular(isMe ? 12 : 0),
-                                                bottomRight: Radius.circular(isMe ? 0 : 12),
-                                              ),
+                                              color: Colors.grey[200],
+                                              borderRadius:
+                                              const BorderRadius.all(
+                                                  Radius.circular(12)),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.black.withOpacity(0.06),
+                                                  color: Colors.black
+                                                      .withOpacity(0.06),
                                                   offset: const Offset(0, 1),
                                                   blurRadius: 1,
                                                 ),
@@ -439,17 +454,17 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                                             child: HighlightedMessage(
                                               text: data['text'] ?? '',
                                               onMentionTap: (username) {
-                                                // Optionally handle tap on username mentions, e.g., open user profile
-                                                print('Tapped on mention: $username');
+                                                print(
+                                                    'Tapped on mention: $username');
                                               },
                                             ),
-
                                           ),
                                           Positioned(
                                             bottom: 0,
                                             right: 0,
                                             child: Padding(
-                                              padding: const EdgeInsets.only(left: 10),
+                                              padding: const EdgeInsets.only(
+                                                  left: 10),
                                               child: Text(
                                                 timeString,
                                                 style: TextStyle(
@@ -459,7 +474,6 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                                               ),
                                             ),
                                           ),
-
                                         ],
                                       ),
                                     ],
@@ -475,87 +489,96 @@ class _GlobalChatPageState extends State<GlobalChatPage> {
                 ),
               ),
               const Divider(height: 1),
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                focusNode: _focusNode,
-                                decoration: const InputDecoration(
-                                  hintText: "Type a message",
-                                  border: InputBorder.none,
-                                ),
-                                minLines: 1,
-                                maxLines: 5,
-                                onChanged: _handleInputChanged,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    CircleAvatar(
-                      backgroundColor: Colors.blue,
-                      child: IconButton(
-                        icon: const Icon(Icons.send, color: Colors.white),
-                        onPressed: _sendMessage,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildMessageInput(),
             ],
           ),
-          if (showUserSuggestions)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 70,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  height: 220,
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: filteredUsers
-                        .take(6)
-                        .map(
-                          (user) => ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: _generateColorFromUsername(user.username).withOpacity(0.1),
-                          child: Text(
-                            user.username[0].toUpperCase(),
-                            style: TextStyle(
-                              color: _generateColorFromUsername(user.username),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        title: Text('@${user.username}'),
-                        onTap: () => _onUserSelected(user.username),
+          if (showUserSuggestions) _buildUserSuggestions(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      decoration: const InputDecoration(
+                        hintText: "Type a message",
+                        border: InputBorder.none,
                       ),
-                    )
-                        .toList(),
+                      minLines: 1,
+                      maxLines: 5,
+                      onChanged: _handleInputChanged,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
+          ),
+          const SizedBox(width: 6),
+          CircleAvatar(
+            backgroundColor: Colors.blue,
+            child: IconButton(
+              icon: const Icon(Icons.send, color: Colors.white),
+              onPressed: _sendMessage,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUserSuggestions() {
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 70,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          height: 220,
+          child: ListView(
+            shrinkWrap: true,
+            children: filteredUsers
+                .take(6)
+                .map(
+                  (user) => ListTile(
+                leading: CircleAvatar(
+                  backgroundColor:
+                  _generateColorFromUsername(user.username)
+                      .withOpacity(0.1),
+                  child: Text(
+                    user.username[0].toUpperCase(),
+                    style: TextStyle(
+                      color: _generateColorFromUsername(user.username),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                title: Text('@${user.username}'),
+                onTap: () => _onUserSelected(user.username),
+              ),
+            )
+                .toList(),
+          ),
+        ),
       ),
     );
   }

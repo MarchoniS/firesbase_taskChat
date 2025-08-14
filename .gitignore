@@ -33,7 +33,9 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-/lib/secrets/firebase_keys.dart
+# Ignore all secrets except firebase_options.dart
+/lib/secrets/*
+
 
 
 # Symbolication related

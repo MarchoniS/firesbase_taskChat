@@ -36,7 +36,12 @@ class _AssignTaskPageState extends State<AssignTaskPage> {
       allUsers = await widget.userRepository.getAllUsers();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load users: $e')),
+        SnackBar(
+          content: Text('❌ Failed to load users: $e'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 20, left: 20, right: 20),
+          duration: const Duration(seconds: 2),
+        ),
       );
     } finally {
       setState(() => _usersLoading = false);
@@ -63,14 +68,24 @@ class _AssignTaskPageState extends State<AssignTaskPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Task assigned successfully!')),
+        SnackBar(
+          content: const Text('✅ Task assigned successfully!'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 20, left: 20, right: 20),
+          duration: const Duration(seconds: 2),
+        ),
       );
 
       _taskController.clear();
       setState(() => selectedUserIds.clear());
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Failed to assign task: $e')),
+        SnackBar(
+          content: Text('❌ Failed to assign task: $e'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(top: 20, left: 20, right: 20),
+          duration: const Duration(seconds: 2),
+        ),
       );
     } finally {
       setState(() => _loading = false);

@@ -1,144 +1,154 @@
-import 'dart:isolate';
-import 'dart:io';
-import 'dart:ui';
-
-import 'package:flutter/foundation.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-@pragma('vm:entry-point')
-class UpdateDownloader {
-  static final ReceivePort _port = ReceivePort();
-  static bool _isPortRegistered = false;
-  static void Function(int progress)? onProgress;
-  static void Function(String filePath)? onDownloadComplete;
+class OTAUpdateManager {
+  OTAUpdateManager._();
+  static final OTAUpdateManager instance = OTAUpdateManager._();
 
-  /// Register isolate port & callback for download completion
-  @pragma('vm:entry-point')
-  static void registerPort({
-    void Function(int progress)? progressCallback,
-    void Function(String filePath)? onComplete,
-  }) {
-    if (_isPortRegistered) return;
+  Future<void> checkForUpdate(BuildContext context, String versionJsonUrl) async {
+    if (!context.mounted) return;
 
-    onProgress = progressCallback;
-    onDownloadComplete = onComplete;
+    bool dialogClosed = false;
+    final ValueNotifier<bool> updateAvailableNotifier = ValueNotifier(false);
+    final ValueNotifier<String> apkUrlNotifier = ValueNotifier('');
+    final ValueNotifier<String> changelogNotifier = ValueNotifier('');
 
-    IsolateNameServer.removePortNameMapping('downloader_port');
-    IsolateNameServer.registerPortWithName(_port.sendPort, 'downloader_port');
+    // Show OTA dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ValueListenableBuilder<bool>(
+        valueListenable: updateAvailableNotifier,
+        builder: (context, updateAvailable, _) => AlertDialog(
+          title: Text(updateAvailable ? "Update Available" : "Checking for updates..."),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Center(
+                child: updateAvailable
+                    ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "New Version available!\nTap Download Now to download.",
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    if (changelogNotifier.value.isNotEmpty)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Changelog:",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(changelogNotifier.value),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ElevatedButton(
+                      onPressed: () async {
 
-    _port.listen((dynamic data) async {
-      final String id = data[0];
-      final int status = data[1];
-      final int progress = data[2];
-
-      if (status == DownloadTaskStatus.running.index) {
-        if (onProgress != null) onProgress!(progress);
-      }
-
-      if (status == DownloadTaskStatus.complete.index) {
-        final tasks = await FlutterDownloader.loadTasks();
-        DownloadTask? task;
-        if (tasks != null) {
-          try {
-            task = tasks.firstWhere((t) => t.taskId == id);
-          } catch (_) {
-            task = null;
-          }
-        }
-
-        if (task != null && task.savedDir.isNotEmpty && task.filename != null) {
-          final filePath = "${task.savedDir}/${task.filename}";
-          if (onDownloadComplete != null) onDownloadComplete!(filePath);
-        }
-      }
-    });
-
-    FlutterDownloader.registerCallback(downloadCallback);
-    _isPortRegistered = true;
-  }
-
-  @pragma('vm:entry-point')
-  static void downloadCallback(String id, int status, int progress) {
-    final SendPort? send = IsolateNameServer.lookupPortByName('downloader_port');
-    send?.send([id, status, progress]);
-  }
-
-  static Future<bool> requestStoragePermission() async {
-    if (!Platform.isAndroid) return true;
-
-    final deviceInfo = DeviceInfoPlugin();
-    final androidInfo = await deviceInfo.androidInfo;
-    final sdkInt = androidInfo.version.sdkInt;
-
-    if (sdkInt >= 34) {
-      final result = await [Permission.photos, Permission.videos, Permission.audio].request();
-      return result.values.any((status) => status.isGranted);
-    } else if (sdkInt >= 33) {
-      final result = await [Permission.storage, Permission.mediaLibrary].request();
-      return result.values.any((status) => status.isGranted);
-    } else {
-      final status = await Permission.storage.request();
-      return status.isGranted;
-    }
-  }
-
-  static Future<void> downloadApk(BuildContext context, String apkUrl) async {
-    final hasPermission = await requestStoragePermission();
-    if (!hasPermission) {
-      debugPrint("❌ Permissions denied");
-      return;
-    }
-
-    final uri = Uri.parse(apkUrl);
-    final filename = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'update.apk';
-
-    final directory = Directory('/storage/emulated/0/Download');
-    if (!(await directory.exists())) {
-      await directory.create(recursive: true);
-    }
-
-    final savedDir = directory.path;
-    final apkFile = File('$savedDir/$filename');
-    if (await apkFile.exists()) {
-      await apkFile.delete();
-    }
-
-    registerPort(
-      progressCallback: (progress) {
-        // Show progress using snackbar or a dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("⬇ Downloading update: $progress%"),
-            duration: Duration(milliseconds: 500),
+                        if (context.mounted) Navigator.pop(context); // Close dialog first
+                        dialogClosed = true; // mark it closed
+                        final url = Uri.parse(apkUrlNotifier.value);
+                        if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Could not open browser")),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text("Download Now"),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        if (context.mounted) Navigator.pop(context);
+                        dialogClosed = true;
+                      },
+                      child: const Text("Later"),
+                    ),
+                  ],
+                )
+                    : const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+
+    try {
+      debugPrint("[OTA] Version JSON URL: $versionJsonUrl");
+
+      final response = await http.get(Uri.parse(versionJsonUrl)).timeout(const Duration(seconds: 10));
+      debugPrint("[OTA] HTTP response status: ${response.statusCode}");
+      debugPrint("[OTA] HTTP response body: ${response.body}");
+
+      if (response.statusCode != 200) throw Exception("HTTP ${response.statusCode}");
+
+      final data = jsonDecode(response.body);
+      final latestVersion = data['version'] as String? ?? '';
+      final apkUrl = data['apkUrl'] as String? ?? '';
+      final forceUpdate = data['forceUpdate'] as bool? ?? false;
+      final changelog = data['changelog'] as String? ?? '';
+
+      final currentVersion = (await PackageInfo.fromPlatform()).version;
+
+      debugPrint("[OTA] Latest version: $latestVersion");
+      debugPrint("[OTA] Current version: $currentVersion");
+      debugPrint("[OTA] APK URL: $apkUrl");
+      debugPrint("[OTA] Force update: $forceUpdate");
+
+      if (_isNewerVersion(latestVersion, currentVersion) && !dialogClosed) {
+        apkUrlNotifier.value = apkUrl;
+        changelogNotifier.value = changelog;
+        updateAvailableNotifier.value = true;
+      } else if (!dialogClosed && context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ You are using the latest version")),
         );
-      },
-        onComplete: (filePath) async {
-          try {
-            await OpenFilex.open(filePath);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("✅ Installer opened.")),
-            );
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("❗ Failed to open installer. $e")),
-            );
-          }
-        }
+      }
+    } on TimeoutException {
+      if (!dialogClosed && context.mounted) Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Update check timed out")),
+      );
+      debugPrint("[OTA] Timeout checking for update");
+    } catch (e, stack) {
+      if (!dialogClosed && context.mounted) Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error checking update: $e")),
+      );
+      debugPrint("[OTA] Unexpected error: $e\n$stack");
+    }
+  }
 
-    );
+  /// Compare semantic versions (numbers only, e.g., "1.0.5")
+  bool _isNewerVersion(String latest, String current) {
+    try {
+      final latestParts = latest.split('.').map(int.parse).toList();
+      final currentParts = current.split('.').map(int.parse).toList();
 
-    await FlutterDownloader.enqueue(
-      url: apkUrl,
-      savedDir: savedDir,
-      fileName: filename,
-      showNotification: true,
-      openFileFromNotification: false,
-    );
+      for (int i = 0; i < latestParts.length; i++) {
+        if (i >= currentParts.length || latestParts[i] > currentParts[i]) return true;
+        if (latestParts[i] < currentParts[i]) return false;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("[OTA] Version parsing error: $e");
+      return false;
+    }
   }
 }
