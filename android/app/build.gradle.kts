@@ -1,20 +1,45 @@
-import com.android.build.gradle.internal.api.BaseVariantOutputImpl
+import java.util.Properties
+
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
+    id("kotlin-android")
+    id("dev.flutter.flutter-gradle-plugin")
+
+    // Firebase
     id("com.google.gms.google-services")
     id("com.google.firebase.firebase-perf")
-    // END: FlutterFire Configuration
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
-    id("dev.flutter.flutter-gradle-plugin")
 }
+
+// 🔑 Load & update version.properties
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties()
+
+if (versionPropsFile.exists()) {
+    versionProps.load(versionPropsFile.inputStream())
+}
+
+var versionCode: Int = versionProps.getProperty("versionCode", "1").toInt()
+var versionName: String = versionProps.getProperty("versionName", "1.0.0")
+
+
+// Increment versionCode automatically
+versionCode += 1
+
+// Update versionName automatically (patch bump, e.g. 1.0.1 → 1.0.2)
+val versionParts = versionName.split(".").toMutableList()
+if (versionParts.size == 3) {
+    versionParts[2] = (versionParts[2].toInt() + 1).toString()
+}
+versionName = versionParts.joinToString(".")
+
+versionProps["versionCode"] = versionCode.toString()
+versionProps["versionName"] = versionName
+versionProps.store(versionPropsFile.outputStream(), null)
 
 android {
     namespace = "com.example.task"
     ndkVersion = "27.0.12077973"
     compileSdk = flutter.compileSdkVersion
-//    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -22,33 +47,36 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    applicationVariants.all {
-        val variant = this
-        outputs.all {
-            val output = this as BaseVariantOutputImpl
-            output.outputFileName = "ChatTask-${variant.name}.apk"
-        }
-    }
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.task"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        minSdk = 29
+        targetSdk = 35
+
+        // ✅ Use auto-incremented values
+        this.versionCode = versionCode
+        this.versionName = versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+
+            val apkName = "ChatTask-${variant.name}-${versionName}.apk"
+
+            // Rename output APK
+            (output as com.android.build.api.variant.impl.VariantOutputImpl)
+                .outputFileName.set(apkName)
         }
     }
 }
@@ -56,9 +84,7 @@ android {
 flutter {
     source = "../.."
 }
-apply(plugin = "com.google.gms.google-services")
 
 dependencies {
-
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

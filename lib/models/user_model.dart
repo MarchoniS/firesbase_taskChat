@@ -5,12 +5,14 @@ class UserModel {
   final String email;
   final String phone;
   final String username;
+  final String? fcmToken;
 
   UserModel({
     required this.uid,
     required this.email,
     required this.phone,
     required this.username,
+    this.fcmToken,
   });
 
   Map<String, dynamic> toMap() =>
